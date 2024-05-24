@@ -1,11 +1,77 @@
-name: Stage the app
 
-on:
-  pull_request:
-    types: [labeled]
+1. **Azure Subscription**: Azure subscription 1.
+2. **Azure CLI**: Install the Azure CLI on your local machine. You can download it from [here](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli).
+3. **GitHub Repository**: Create a GitHub repository for your project.
 
-jobs:
-  build:
-    runs-on: ubuntu-latest
+## Setting Up Azure
 
-    if: contains(github.event.pull_request.labels.*.name, 'stage')
+1. **Login to Azure**:
+    ```bash
+    az login
+    ```
+
+    ```bash
+    az group create --name MyResourceGroup --location EastUS
+    ```
+
+## GitHub Secrets
+
+Store your Azure credentials and other sensitive information as secrets in your GitHub repository.
+
+    ```bash
+    az ad sp create-for-rbac --name "myApp" --role contributor \
+        --scopes /subscriptions/{subscription-id}/resourceGroups/{resource-group} \
+        --sdk-auth
+    ```
+
+    Copy the output JSON. It contains your `clientId`, `clientSecret`, `subscriptionId`, and `tenantId`.
+
+    - Go to your repository on GitHub.
+    - Click on `Settings` > `Secrets` > `New repository secret`.
+        - `AZURE_CREDENTIALS`: Paste the JSON output from the service principal creation.
+        - Any other secrets your application might require (e.g., database connection strings).
+
+## GitHub Actions Workflow
+
+Create a GitHub Actions workflow file to automate the deployment process.
+
+    ```yaml
+    name: Deploy to Azure
+
+    on:
+      push:
+        branches:
+          - main
+
+    jobs:
+      build-and-deploy:
+        runs-on: ubuntu-latest
+
+        steps:
+        - name: Checkout code
+          uses: actions/checkout@v2
+
+        - name: Setup Node.js (if your project is a Node.js app)
+          uses: actions/setup-node@v2
+          with:
+            node-version: '14'
+
+        - name: Install dependencies
+          run: npm install
+
+        - name: Build project
+          run: npm run build
+
+        - name: Login to Azure
+          uses: azure/login@v1
+          with:
+            creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+        - name: Deploy to Azure Web App
+          uses: azure/webapps-deploy@v2
+          with:
+            app-name: 'my-web-app' # Replace with your Azure Web App name
+            slot-name: 'production'
+            package: '.'
+    ```
+
